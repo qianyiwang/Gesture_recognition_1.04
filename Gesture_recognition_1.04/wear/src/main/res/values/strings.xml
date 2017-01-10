@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Gesture_recognition_1.04</string>
+    <string name="hello_round">Hello Round World!</string>
+    <string name="hello_square">Hello Square World!</string>
+</resources>
