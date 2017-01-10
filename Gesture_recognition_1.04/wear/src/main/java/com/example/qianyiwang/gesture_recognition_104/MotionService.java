@@ -31,23 +31,21 @@ public class MotionService extends Service implements SensorEventListener {
     //Sensor variable
     Sensor senAccelerometer, senGyroscope;
     SensorManager mSensorManager;
-    Queue<Float> pitchBuffer, rollBuffer;
-    Queue<Float> accXBuffer, accYBuffer, accZBuffer;
+    Queue<Float> gyrXBuffer, gyrYBuffer, gyrZBuffer;
     private SlidingWindow slidingWindow;
     @Override
     public void onCreate() {
         super.onCreate();
 
         mSensorManager = ((SensorManager) getSystemService(SENSOR_SERVICE));
-        senAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+//        senAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         senGyroscope = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-        mSensorManager.registerListener(this, senAccelerometer , SensorManager.SENSOR_DELAY_FASTEST);//adjust the frequency
+//        mSensorManager.registerListener(this, senAccelerometer , SensorManager.SENSOR_DELAY_FASTEST);//adjust the frequency
         mSensorManager.registerListener(this, senGyroscope , SensorManager.SENSOR_DELAY_FASTEST);//adjust the frequency
-        pitchBuffer = new LinkedList<Float>();
-        rollBuffer = new LinkedList<Float>();
-        accXBuffer = new LinkedList<Float>();
-        accYBuffer = new LinkedList<Float>();
-        accZBuffer = new LinkedList<Float>();
+
+        gyrXBuffer = new LinkedList<Float>();
+        gyrYBuffer = new LinkedList<Float>();
+        gyrZBuffer = new LinkedList<Float>();
     }
 
     @Override
@@ -61,23 +59,15 @@ public class MotionService extends Service implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
 
-        if(event.sensor.getType() == Sensor.TYPE_ACCELEROMETER){
-            float acc_x = event.values[0];
-            float acc_y = event.values[1];
-            float acc_z= event.values[2];
-            float pitch = calculatePitch(acc_y, acc_z);
-            float roll = calculateRoll(acc_x, acc_z);
-            if(accXBuffer.size()<40){
-                accXBuffer.offer(acc_x);
-                accYBuffer.offer(acc_y);
-                accZBuffer.offer(acc_z);
+        if(event.sensor.getType() == Sensor.TYPE_GYROSCOPE){
+            float gyr_x = event.values[0];
+            float gyr_y = event.values[1];
+            float gyr_z= event.values[2];
+            if(gyrXBuffer.size()<40){
+                gyrXBuffer.offer(gyr_x);
+                gyrYBuffer.offer(gyr_y);
+                gyrZBuffer.offer(gyr_z);
             }
-
-
-//            float omegaMagnitude = (float) Math.sqrt(acc_x * acc_x + acc_y * acc_y + acc_z * acc_z);
-
-//            Log.v("pitch",pitch+"");
-//            Log.v("_roll",roll+"");
 
         }
     }
@@ -103,16 +93,9 @@ public class MotionService extends Service implements SensorEventListener {
     }
 
     // features methods
-    private float calculatePitch(float y, float z){
-        return (float) (180/Math.PI * Math.atan2(y/9.8,z/9.8));
-    }
-    private float calculateRoll(float x, float z){
-        return (float) (180/Math.PI * Math.atan2(x/9.8,z/9.8));
-    }
     private float calculateMagnitude(float x, float y, float z){
         return (float) Math.sqrt(x * x + y * y + z * z);
     }
-
 
 
 // Sliding Window Algorithm
@@ -120,9 +103,9 @@ public class MotionService extends Service implements SensorEventListener {
 
     @Override
     protected Void doInBackground(Void... voids) {
-        float[] accXWindow = new float[40];
-        float[] accYWindow = new float[40];
-        float[] accZWindow = new float[40];
+        float[] gyrXWindow = new float[40];
+        float[] gyrYWindow = new float[40];
+        float[] gyrZWindow = new float[40];
         int pos = 0;
         while(true){
             if (isCancelled())
@@ -130,19 +113,16 @@ public class MotionService extends Service implements SensorEventListener {
                 break;
             }
 
-            if(accXBuffer.peek()!=null&&accYBuffer.peek()!=null&&accZBuffer.peek()!=null){
-                accXWindow[pos] = accXBuffer.poll();
-                accYWindow[pos] = accYBuffer.poll();
-                accZWindow[pos] = accZBuffer.poll();
+            if(gyrXBuffer.peek()!=null&&gyrYBuffer.peek()!=null&&gyrZBuffer.peek()!=null){
+                gyrXWindow[pos] = gyrXBuffer.poll();
+                gyrYWindow[pos] = gyrYBuffer.poll();
+                gyrZWindow[pos] = gyrZBuffer.poll();
                 pos++;
                 if(pos==40){
                     pos = 0;
-
                     for(int i=0; i<40; i++){
-                        float roll = calculateRoll(accXWindow[i], accZWindow[i]);
-                        float pitch = calculatePitch(accYWindow[i], accZWindow[i]);
-                        Log.v("_roll", roll+"");
-                        Log.v("pitch", pitch+"");
+                        float magnitude = calculateMagnitude(gyrXWindow[i], gyrYWindow[i], gyrZWindow[i]);
+                        Log.v("magni", magnitude+"");
                     }
                 }
             }
