@@ -34,6 +34,7 @@ public class MotionService extends Service implements SensorEventListener {
     Queue<Float> pitchBuffer, rollBuffer;
     Queue<Float> accXBuffer, accYBuffer, accZBuffer;
     private SlidingWindow slidingWindow;
+    final int windowSize = 100;
     @Override
     public void onCreate() {
         super.onCreate();
@@ -65,9 +66,7 @@ public class MotionService extends Service implements SensorEventListener {
             float acc_x = event.values[0];
             float acc_y = event.values[1];
             float acc_z= event.values[2];
-            float pitch = calculatePitch(acc_y, acc_z);
-            float roll = calculateRoll(acc_x, acc_z);
-            if(accXBuffer.size()<40){
+            if(accXBuffer.size()<windowSize){
                 accXBuffer.offer(acc_x);
                 accYBuffer.offer(acc_y);
                 accZBuffer.offer(acc_z);
@@ -113,16 +112,51 @@ public class MotionService extends Service implements SensorEventListener {
         return (float) Math.sqrt(x * x + y * y + z * z);
     }
 
+    private float[] max_min_avg(float[] data){
+        float[] res = new float[3];
+        float max = data[0];
+        float min = data[0];
+        float avg = data[0];
+        for (float f: data){
+            if(f>max){
+                max = f;
+            }
+            if(f<min){
+                min = f;
+            }
+            avg += f;
+        }
+        avg = avg/data.length;
+        res[0] = max;
+        res[1] = min;
+        res[2] = avg;
+        return res;
+    }
 
+    private float[] std_zcr(float[] data, float avg){
+        float[] res = new float[2];
+        float std = 0;
+        float zcr = 0;
+        for(float f: data){
+            std += (f-avg)*(f-avg);
+            if(f>avg){
+                zcr++;
+            }
+        }
+        std = (float) Math.sqrt(std/data.length);
+        res[0] = std;
+        res[1] = zcr;
+        return res;
+    }
 
 // Sliding Window Algorithm
     private class SlidingWindow extends AsyncTask<Void, Void, Void>{
 
     @Override
     protected Void doInBackground(Void... voids) {
-        float[] accXWindow = new float[40];
-        float[] accYWindow = new float[40];
-        float[] accZWindow = new float[40];
+        float[] accWindow = new float[windowSize];
+        float[] rollWindow = new float[windowSize];
+        float[] pitchWindow = new float[windowSize];
         int pos = 0;
         while(true){
             if (isCancelled())
@@ -131,19 +165,38 @@ public class MotionService extends Service implements SensorEventListener {
             }
 
             if(accXBuffer.peek()!=null&&accYBuffer.peek()!=null&&accZBuffer.peek()!=null){
-                accXWindow[pos] = accXBuffer.poll();
-                accYWindow[pos] = accYBuffer.poll();
-                accZWindow[pos] = accZBuffer.poll();
+                float acc_x = accXBuffer.poll();
+                float acc_y = accYBuffer.poll();
+                float acc_z = accZBuffer.poll();
+                float magnitude = calculateMagnitude(acc_x, acc_y, acc_z);
+                float roll = calculateRoll(acc_x, acc_z);
+                float pitch = calculatePitch(acc_y, acc_z);
+                accWindow[pos] = magnitude;
+                rollWindow[pos] = roll;
+                pitchWindow[pos] = pitch;
                 pos++;
-                if(pos==40){
+                if(pos==windowSize){
                     pos = 0;
+                    // extract max-min, mean, standard deviation, zero cross rate in window
 
-                    for(int i=0; i<40; i++){
-                        float roll = calculateRoll(accXWindow[i], accZWindow[i]);
-                        float pitch = calculatePitch(accYWindow[i], accZWindow[i]);
-                        Log.v("_roll", roll+"");
-                        Log.v("pitch", pitch+"");
-                    }
+                    float[] roll_max_min_avg = max_min_avg(rollWindow);
+                    float roll_max = roll_max_min_avg[0];
+                    float roll_min = roll_max_min_avg[1];
+                    float roll_avg = roll_max_min_avg[2];
+                    float[] roll_std_zcr = std_zcr(rollWindow, roll_avg);
+                    float roll_std = roll_std_zcr[0];
+                    float roll_zcr = roll_std_zcr[1];
+
+                    float[] pitch_max_min_avg = max_min_avg(pitchWindow);
+                    float pitch_max = pitch_max_min_avg[0];
+                    float pitch_min = pitch_max_min_avg[1];
+                    float pitch_avg = pitch_max_min_avg[2];
+                    float[] pitch_std_zcr = std_zcr(pitchWindow, pitch_avg);
+                    float pitch_std = pitch_std_zcr[0];
+                    float pitch_zcr = pitch_std_zcr[1];
+
+                    Log.v("roll,pitch-100", (roll_max-roll_min)+","+roll_avg+","+roll_std+","+roll_zcr+","+(pitch_max-pitch_min)+","+pitch_avg+","+pitch_std+","+pitch_zcr);
+
                 }
             }
         }
